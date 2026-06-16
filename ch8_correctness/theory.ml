@@ -1,4 +1,5 @@
 
+(* ----------------------------------SPECIFICATIONS----------------------------------------------*)
 (**
   [f x] is... - definition of function in declarative manner.
   Example : .... - an example application of function.
@@ -52,6 +53,9 @@ module type Set = sig
      Union of set with elements {1,2,3} and set with elements {3,4}
      is a set with elements {1,2,3,4}*)
   val union : 'a t -> 'a t -> 'a t
+
+  (**[to_string xs] is a string of all elements in xs*)
+  val to_string : ('a -> string) -> 'a t -> string
 end
 
 module ListSet : Set = struct
@@ -61,16 +65,102 @@ module ListSet : Set = struct
     The List itself may contain duplicates.
     The empty list represents the empty set.
   *)
+  let uniq xs = List.sort_uniq Stdlib.compare xs
   type 'a t = 'a list
   let empty = []
-  let size xs = xs |> List.sort_uniq compare |> List.length (* O(n log n)*)
+  let size xs = xs |> uniq |> List.length (* O(n log n)*)
   let add = List.cons
   let mem = List.mem
+
   let union a b =
     let rec aux acc ax =
     match ax with
     | [] -> acc
     | h :: t -> aux (h::acc) t
     in
-    aux (List.sort_uniq compare b) (List.sort_uniq compare a)
+    aux (uniq b) (uniq a)
+
+  let to_string string_of_val xs = 
+    let interior =
+      xs |> uniq |> List.map string_of_val |> String.concat ","
+    in
+    "{" ^ interior ^ "}"
 end
+
+(* ----------------------------------TESTING----------------------------------------------*)
+(*
+  Black box testing - tests driven by the specifications but not implementation
+  1) Typical inputs
+  2) Boundary cases
+  3) Inputs that generate all possibile output states
+  4) Inputs that raise exceptions - if exceptions are guaranteed by specification
+  
+  Note to self - it's a good idea to chart possible input ranges and pick along the borders
+  to find weird edge cases. This will need some creativity and practice
+*)
+
+(* Practice making a test suite for an arbitrary list_max function *)
+(* list_max takes in an int list and outputs an int *)
+let list_max (xs : int list) = 0 (* dummy *)
+
+(* Tests Exercise *)
+(* Typical inputs *)
+(* These should be normal inputs that behave as expected but with different sortings *)
+let only_positive = [1;10000;1000000;0]
+let only_negative = [-1000; -5; -2]
+let mixed_signs = [-5;5;-6;6]
+
+(* Boundary cases *)
+(* Empty list, duplicates, *)
+let empty_case = []
+let dup_case = [1;1;0;0;-1;-1]
+let edge_cases = [max_int + max_int; min_int + min_int; max_int; min_int]
+
+(* GLASS BOX Testing *)
+(* This form of testing can help us get to path complete test suites.
+   A good flow - ? start with black box, then push the suite towards path complete using glass
+   box. Note : Path complete guarantees every part of implementation is tested
+   but it does NOT guarantee the implementation itself is right.
+   Black Box is still needed to prove this
+*)
+
+(* PROPERTY TESTING WITH QCHECK *)
+(* There seems to be a nice flow here *)
+(**
+  1. Use black box testing to define invariants - THIS seems to be the hard step
+  2. Treat said invariants as properties and use qcheck to generate tests to CHECK them
+  3. Use glass box testing to see if generated test suite achieves satisfactory coverage
+*)
+open QCheck2
+let long_list_generator low high lb rb =
+  Gen.list_size (Gen.(low -- high)) Gen.(lb -- rb)
+
+let is_leap_year x =
+  (x mod 4 = 0) && (x mod 100 <> 0 || x mod 400 = 0)
+
+(* Invariant 1 - non multiples of 4 CANNOT be leap years *)
+(**[mult4_or_non_leap_year x] is true if x mod 4 is 0 or if it is not a leap year *)
+let mult4_or_non_leap_year x = x mod 4 = 0 || not (is_leap_year x)
+(* Why test this way? - it forces us to confirm that is_leap_year is always false for all 
+   non multiples of 4 *)
+
+let random_non_4s = 
+  Test.make
+    ~name: "Non multiples of 4 cannot be leap years"
+    ~count: 1000
+    (Gen.(1 -- 3000))
+    (mult4_or_non_leap_year)
+
+let mult400_or_non_leap_year x = 
+  x mod 400 = 0 || not (is_leap_year x)
+
+let random_non_100s =
+  Test.make
+   ~name: "Multiples of 100 but not 400 cannot be leap years"
+   ~count: 1000
+   (Gen.(map (fun x -> x * 100) (1 -- 30)))
+   mult400_or_non_leap_year
+
+
+(* How is all of this working? *)
+(* Visit internals of QCheck tomorow.....*)
