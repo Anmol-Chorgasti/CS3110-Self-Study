@@ -163,4 +163,64 @@ let random_non_100s =
 
 
 (* How is all of this working? *)
-(* Visit internals of QCheck tomorow.....*)
+(**
+  The QCheck way
+  1) Use an inbuilt generator to create pseudorandom values of type 'a
+  2) To test our property we have to feed them arbitraries
+  3) An arbitrary is a package around our generator with additional functionality
+  4) The Test then gets both our arbitrary and property, it then USES the generator inside
+  arbitrary to generate the values to test the property on. 
+*)
+
+open QCheck 
+
+let is_even n = n mod 2 = 0
+let t = 
+  QCheck.Test.make 
+  ~count:1000
+  (QCheck.make QCheck.Gen.int) 
+  is_even
+
+(**
+  EXPLANATION:
+  Seems like to create a QCheck test, we pass an arbitrary
+  which itself is made by passing a Generator to QCheck.make,
+  and a property to test said arbitraries on.
+  (What if an inbuilt generator for my desired data structure does not exist?)
+  The count specifies how many times the generator must be used to spawn a value
+  In Utop t is shown to be of the type QCheck2.Test.t
+*)
+
+let tests = [t]
+let _ = QCheck_runner.run_tests_main tests
+let ounit2_test = QCheck_runner.to_ounit2_test t
+(* QCheck test can be converted into an ounit2 test to be included in that suite *)
+
+(* Using better inbuilt arbitraries that have more functionalities implemented *)
+let t2 =
+  QCheck.Test.make
+  ~name:"my_test"
+  ~count:10
+  QCheck.int
+  is_even
+
+(* QCheck.int is an inbuilt arbitrary that has both QCheck.Gen.int as its generator
+   and a lot more other functionality for printing, shrinking etc: *)
+
+(* EXERCISE - Test property - Reversing a list twice get you back the same list *)
+let involution_check lst = 
+  List.rev (List.rev lst) = lst
+
+let inv_t =
+  QCheck.Test.make
+  ~name:"Double reversal of list is original list"
+  ~count:1000
+  QCheck.(list int)
+  involution_check
+(**
+  Notes:
+  1) QCheck.(list int) creates an arbitrary of integer lists.
+  2) QCheck.list expects to take in an arbitrary OF some type 'a as an input
+  and then it returns an arbitrary which is a LIST of those types. 
+  (DON'T ASSUME THIS CREATES A LIST OF ARBITRARIES!)
+*)
