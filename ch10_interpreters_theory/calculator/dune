@@ -1,0 +1,6 @@
+(menhir
+ (modules parser))
+
+(executables
+ (names test)
+ (libraries ounit2 qcheck))
